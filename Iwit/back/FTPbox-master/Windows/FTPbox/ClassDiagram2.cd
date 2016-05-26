@@ -1,0 +1,124 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="FTPbox.Forms.fAccountDetails" Collapsed="true">
+    <Position X="0.5" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAADEGCGAAAACCACAAQAiAAAxUAACAACAAAABAFA=</HashCode>
+      <FileName>Forms\fAccountDetails.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Forms.fIgnoredExtensions" Collapsed="true">
+    <Position X="2.25" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>CCABgAAAACAAAAAAAACAAAACAAAQAAgBAAAAABAFEEA=</HashCode>
+      <FileName>Forms\fIgnoredExtensions.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Forms.fMain">
+    <Position X="7.5" Y="3.25" Width="4.5" />
+    <Compartments>
+      <Compartment Name="Fields" Collapsed="true" />
+    </Compartments>
+    <TypeIdentifier>
+      <HashCode>IsePPkmXWHqLMVKPDOCHEcB6oVwnNoSdieEVUMje9mA=</HashCode>
+      <FileName>Forms\fMain.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Forms.fSelectiveSync">
+    <Position X="5.75" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAEAAACgIBAAAAACCAASCVAAAIACQAAAEgBCBAEA=</HashCode>
+      <FileName>Forms\fSelectiveSync.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Forms.fTrayForm" Collapsed="true">
+    <Position X="0.5" Y="1.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AgAAAAAAACCAAAgAABCQAAACKAAAAABABBAMAQAABEA=</HashCode>
+      <FileName>Forms\fTrayForm.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Forms.Setup" Collapsed="true">
+    <Position X="7.5" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>UBFKIAQAhqVJQQoPBAKTAB1ChAABcMCsAIEAZAYCGRQ=</HashCode>
+      <FileName>Forms\Setup.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Forms.Translate" Collapsed="true">
+    <Position X="0.5" Y="3.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>1wAKIEAEBCAQABADAQCQAgKCBQkhAAAIRIARAiIIAAQ=</HashCode>
+      <FileName>Forms\Translate.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Forms.TranslationItem" Collapsed="true">
+    <Position X="2.25" Y="3.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAAAACAAAAAA=</HashCode>
+      <FileName>Forms\Translate.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Forms.trayFormListItem" Collapsed="true">
+    <Position X="4" Y="3.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>BAAAAAEAACAAAAAAAACBgAgCAgAAAAAAAAAAACAAAgA=</HashCode>
+      <FileName>Forms\trayFormListItem.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.newversion" Collapsed="true">
+    <Position X="2.25" Y="1.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>JAIAAgCAACAAIBQAEACAAAACAICAAAAAAYAAACAAgEA=</HashCode>
+      <FileName>Forms\newversion.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Program">
+    <Position X="4" Y="1.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAEABAAAAAEAAAAAAAAAwQBAAACEA=</HashCode>
+      <FileName>Program.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.StreamString">
+    <Position X="10.5" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAgAAAAAAAIAEAQAAAAAAAAAAAAA=</HashCode>
+      <FileName>Program.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.ReadMessageSent">
+    <Position X="9" Y="0.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAABCAAAAAAAAAAAAAAAAAAAAAQAAAAAAAAAAA=</HashCode>
+      <FileName>Program.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Win32" Collapsed="true">
+    <Position X="3.75" Y="5.25" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAIAAAAAAAEBAgAAAAAAAAQAFAEAAAAAAAQAAAAAA=</HashCode>
+      <FileName>Win32.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Properties.Resources">
+    <Position X="0.5" Y="2.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAQEACAAAAAAAAAAAAAhEAAAAQCABBAAAEAAAAAABIA=</HashCode>
+    </TypeIdentifier>
+  </Class>
+  <Class Name="FTPbox.Properties.Settings">
+    <Position X="2.25" Y="2.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>CgAAIAAAAAQJAAAAABBBKCAgBAADEAAAoBAAAABYAAg=</HashCode>
+    </TypeIdentifier>
+  </Class>
+  <Enum Name="FTPbox.Forms.AccountSetupTab">
+    <Position X="0.5" Y="4.75" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAEAQBAEAIAA=</HashCode>
+      <FileName>Forms\Setup.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>

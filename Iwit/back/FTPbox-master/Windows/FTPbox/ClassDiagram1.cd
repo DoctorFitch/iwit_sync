@@ -1,0 +1,18 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<ClassDiagram MajorVersion="1" MinorVersion="1">
+  <Class Name="FTPbox.Forms.Setup">
+    <Position X="1.75" Y="0.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>UBFKIAQAhqVJQQoPBAKTAB1ChAABcMCsAIEAZAYCGRQ=</HashCode>
+      <FileName>Forms\Setup.cs</FileName>
+    </TypeIdentifier>
+  </Class>
+  <Enum Name="FTPbox.Forms.AccountSetupTab">
+    <Position X="5" Y="2.5" Width="1.5" />
+    <TypeIdentifier>
+      <HashCode>AAAAAAAAAAAAAAAAAAABAAAAAAAAAAAAAEAQBAEAIAA=</HashCode>
+      <FileName>Forms\Setup.cs</FileName>
+    </TypeIdentifier>
+  </Enum>
+  <Font Name="Segoe UI" Size="9" />
+</ClassDiagram>

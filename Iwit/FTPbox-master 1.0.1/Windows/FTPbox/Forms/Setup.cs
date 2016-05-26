@@ -1,0 +1,850 @@
+﻿using System;
+using System.Drawing;
+using System.Linq;
+using System.Windows.Forms;
+using FTPboxLib;
+using System.Diagnostics;
+using IWshRuntimeLibrary;
+using Microsoft.CSharp;
+
+namespace FTPbox.Forms
+{
+    public partial class Setup : Form
+    {
+        private readonly Point _groupLocation = new Point(12, 12);
+        public IWshRuntimeLibrary.IWshEnvironment_Class WshShell;
+        private AccountSetupTab _prevTab = AccountSetupTab.None;
+        private AccountSetupTab _currentTab = AccountSetupTab.None;
+        private AccountSetupTab _initialTab;
+
+        private FolderBrowserDialog fbd = new FolderBrowserDialog() { RootFolder = Environment.SpecialFolder.Desktop, ShowNewFolderButton = true };
+
+        private bool _checkingNodes = false;
+        public static bool JustPassword = false;
+        private string _privateKey;
+        
+        public Setup()
+        {
+            InitializeComponent();
+            var basicSetup = string.IsNullOrEmpty(Settings.General.Language);
+
+            _initialTab = basicSetup ? AccountSetupTab.None : AccountSetupTab.Login;
+
+            PopulateLanguages();
+
+            if (basicSetup)
+                CheckCurrentLanguage();
+            else
+                SetLanguage(Settings.General.Language);
+
+            _currentTab = _initialTab;
+
+            labKeyPath.Text = string.Empty;
+            cEncryption.SelectedIndex = 0;
+            cMode.SelectedIndex = 0;
+            SetDefaultLocalPathINSTANT();
+        }
+
+        private void Setup_Load(object sender, EventArgs e)
+        {
+            MoveGroups();
+            DisableGroups();
+            HideGroups();
+
+            SwitchTab(_currentTab);
+
+            if (JustPassword && Program.Account.isAccountSet)
+            {
+                tHost.Text = Program.Account.Account.Host;
+                tUsername.Text = Program.Account.Account.Username;
+                nPort.Value = Program.Account.Account.Port;
+                cEncryption.SelectedIndex = (Program.Account.Account.Protocol != FtpProtocol.FTPS) ? 0 : (Program.Account.Account.FtpsMethod == FtpsMethod.Explicit ? 1 : 2);
+                cMode.SelectedIndex = (Program.Account.Account.Protocol != FtpProtocol.SFTP) ? 0 : 1;
+                cAskForPass.Checked = true;
+
+                if (Program.Account.isPrivateKeyValid)
+                {
+                    _privateKey = Program.Account.Account.PrivateKeyFile;
+                    labKeyPath.Text = new System.IO.FileInfo(_privateKey).Name;
+                    cEncryption.SelectedIndex = 1;
+
+                    labEncryption.Text = Common.Languages[UiControl.Authentication];
+                }
+
+                SwitchTab(AccountSetupTab.Login);
+
+                this.AcceptButton = bFinish;
+                this.ActiveControl = tPass;
+                bFinish.Enabled = true;
+                bNext.Enabled = false;
+                bPrevious.Enabled = false;
+            }
+            cEncryption.SelectedIndexChanged += cEncryption_SelectedIndexChanged;
+            cMode.SelectedIndexChanged += cMode_SelectedIndexChanged;
+        }
+
+        /// <summary>
+        /// Relocate all control-groups to top-left.
+        /// </summary>
+        private void MoveGroups()
+        {
+            gLanguage.Location = _groupLocation;
+            gLoginDetails.Location = _groupLocation;
+            gLocalFolder.Location = _groupLocation;
+            gRemoteFolder.Location = _groupLocation;
+            gSelectiveSync.Location = _groupLocation;
+            gMessageWelcome.Location = _groupLocation;
+        }
+
+        /// <summary>
+        /// Hide all control-groups.
+        /// </summary>
+        private void HideGroups()
+        {
+            gLanguage.Visible = false;
+            gLoginDetails.Visible = false;
+            gLocalFolder.Visible = false;
+            gRemoteFolder.Visible = false;
+            gSelectiveSync.Visible = false;
+            gMessageWelcome.Visible = false;
+        }
+
+        /// <summary>
+        /// Disable all control-groups.
+        /// </summary>
+        private void DisableGroups()
+        {
+            gLanguage.Enabled = false;
+            gLoginDetails.Enabled = false;
+            gLocalFolder.Enabled = false;
+            gRemoteFolder.Enabled = false;
+            gSelectiveSync.Enabled = false;
+            gMessageWelcome.Enabled = false;
+        }
+
+        /// <summary>
+        /// Show the specified group (tab), hide and disable the rest
+        /// </summary>
+        private void SwitchTab(AccountSetupTab tab)
+        {
+            HideGroups();
+            DisableGroups();
+
+            switch (tab)
+            {
+                case AccountSetupTab.Login:
+                    gLoginDetails.Enabled = true;
+                    gLoginDetails.Visible = true;
+                    break;
+                    
+                case AccountSetupTab.LocalFodler:
+                    gLocalFolder.Enabled = true;
+                    gLocalFolder.Visible = true;
+                    break;
+
+                case AccountSetupTab.RemoteFolder:
+                case AccountSetupTab.SelectiveSync:
+                    gRemoteFolder.Enabled = true;
+                    gRemoteFolder.Visible = true;
+                    break;
+
+                case AccountSetupTab.FileSyncOption:
+                    gSelectiveSync.Enabled = true;
+                    gSelectiveSync.Visible = true;
+                    break;
+                    
+                case AccountSetupTab.MessageWelcome:
+                    gMessageWelcome.Enabled = true;
+                    gMessageWelcome.Visible = true;
+                    break;
+
+                default:
+                    gLanguage.Enabled = true;
+                    gLanguage.Visible = true;
+                    break;
+
+            }
+
+            _prevTab = _currentTab;
+            _currentTab = tab;
+
+            bPrevious.Enabled = _currentTab != _initialTab;
+            bNext.Enabled = _currentTab != AccountSetupTab.SelectiveSync && _currentTab != AccountSetupTab.FileSyncOption;
+            bFinish.Enabled = !bNext.Enabled;
+        }
+
+        /// <summary>
+        /// Fill the combo-box of available translations.
+        /// </summary>
+        private void PopulateLanguages()
+        {
+            cLanguages.Items.Clear();
+            cLanguages.Items.AddRange(Common.FormattedLanguageList);
+            // Default to English
+            cLanguages.SelectedIndex = Common.SelectedLanguageIndex;
+        }
+
+        /// <summary>
+        /// Check if the system language is available in the translations.
+        /// If yes, switch to it in cLanguages
+        /// </summary>
+        private void CheckCurrentLanguage()
+        {
+            var locallangtwoletter = System.Globalization.CultureInfo.CurrentUICulture.TwoLetterISOLanguageName;
+
+            if (Common.LanguageList.ContainsKey(locallangtwoletter))
+                cLanguages.SelectedIndex = Common.LanguageList.Keys.ToList().IndexOf(locallangtwoletter);
+        }
+
+        /// <summary>
+        /// Translate all controls to the specified language
+        /// </summary>        
+        private void SetLanguage(string lan)
+        {
+            Log.Write(l.Info, "Setting lang: {0}", lan);
+            Settings.General.Language = lan;
+            // Language
+            // this should be left to English only.
+
+            // Login
+            gLoginDetails.Text = Common.Languages[UiControl.LoginDetails];
+            labMode.Text = Common.Languages[UiControl.Protocol];
+            labEncryption.Text = Common.Languages[UiControl.Encryption];
+            labHost.Text = Common.Languages[UiControl.Host];
+            labUN.Text = Common.Languages[UiControl.Username];
+            labPass.Text = Common.Languages[UiControl.Password];
+            cAskForPass.Text = Common.Languages[UiControl.AskForPassword];
+
+            // Local Folder
+            gLocalFolder.Text = Common.Languages[UiControl.LocalFolder];
+            rDefaultLocalFolder.Text = Common.Languages[UiControl.DefaultLocalFolder];
+            rCustomLocalFolder.Text = Common.Languages[UiControl.CustomLocalFolder];
+            bBrowse.Text = Common.Languages[UiControl.Browse];
+
+            // Remote Folder
+            gRemoteFolder.Text = Common.Languages[UiControl.RemotePath];
+            labFullPath.Text = Common.Languages[UiControl.FullRemotePath];
+
+            // Selective Sync
+            gSelectiveSync.Text = Common.Languages[UiControl.SelectiveSync];
+            rSyncAll.Text = Common.Languages[UiControl.SyncAllFiles];
+            rSyncCustom.Text = Common.Languages[UiControl.SyncSpecificFiles];
+
+            // Buttons
+            bPrevious.Text = Common.Languages[UiControl.Previous];
+            bNext.Text = Common.Languages[UiControl.Next];
+            bFinish.Text = Common.Languages[UiControl.Finish];
+
+            // Is this a right-to-left language?            
+            RightToLeftLayout = Common.RtlLanguages.Contains(lan);
+        }
+
+        /// <summary>
+        /// Attempt to login with the given details.
+        /// On successful login, move to next tab or
+        /// exit if this is a JustPassword dialog.
+        /// </summary>
+        private void TryLogin()
+        {
+            bool ftporsftp = cMode.SelectedIndex == 0;
+            bool ftps = cMode.SelectedIndex == 0 && cEncryption.SelectedIndex != 0;
+            bool ftpes = cEncryption.SelectedIndex == 1;
+
+            Program.Account.AddAccount(tHost.Text, tUsername.Text, tPass.Text, Convert.ToInt32(nPort.Value));
+            if (ftporsftp && ftps)
+                Program.Account.Account.Protocol = FtpProtocol.FTPS;
+            else if (ftporsftp)
+                Program.Account.Account.Protocol = FtpProtocol.FTP;
+            else
+                Program.Account.Account.Protocol = FtpProtocol.SFTP;
+
+            if (!ftps)
+                Program.Account.Account.FtpsMethod = FtpsMethod.None;
+            else if (ftpes)
+                Program.Account.Account.FtpsMethod = FtpsMethod.Explicit;
+            else
+                Program.Account.Account.FtpsMethod = FtpsMethod.Implicit;
+
+            Program.Account.Account.PrivateKeyFile = (!ftporsftp && cEncryption.SelectedIndex == 1) ? _privateKey : null;
+
+            try
+            {
+                Program.Account.Client.Connect();
+                Log.Write(l.Debug, "Connecté: {0}", Program.Account.Client.isConnected);
+
+                if (JustPassword)
+                {
+                    Program.Account.AskForPassword = cAskForPass.Checked;
+                    Settings.Save(Program.Account);
+                    Hide();
+                    return;
+                }
+
+                SetDefaultLocalPath();
+            }
+            catch (Exception ex)
+            {
+                MessageBox.Show("Impossible de se connecter au serveur FTP. Vérifiez vos identifiants de connexion/adresse."
+                    + Environment.NewLine + "Message d'erreur : " + ex.Message, "Erreur", MessageBoxButtons.OK, MessageBoxIcon.Error);
+                Form.ActiveForm.Close();
+            }
+        }
+
+        /// <summary>
+        /// Get a remote list inside the current directory
+        /// and display the results in tRemoteList.        
+        /// </summary>
+        private void PopulateRemoteList()
+        {
+            tRemoteList.Nodes.Clear();
+
+            var first = new TreeNode { Text = "/" };
+            var current = first;
+            foreach (var f in Program.Account.HomePath.Split('/'))
+            {
+                if (string.IsNullOrWhiteSpace(f)) continue;
+
+                current.Nodes.Add(f);
+                current = current.FirstNode;
+            }
+            if (_currentTab == AccountSetupTab.RemoteFolder)
+            {
+                tRemoteList.AfterExpand -= tRemoteList_AfterExpand;
+                tRemoteList.Nodes.Add(first);
+                tRemoteList.ExpandAll();
+            }
+            Log.Write(l.Warning, Program.Account.Client.WorkingDirectory);
+            foreach (var c in Program.Account.Client.List(".", false))
+            {
+                if (c.Type == ClientItemType.Folder)
+                {
+                    var ParentNode = new TreeNode { Text = c.Name };
+                    if (_currentTab == AccountSetupTab.RemoteFolder)
+                        current.Nodes.Add(ParentNode);
+                    else
+                        tRemoteList.Nodes.Add(ParentNode);
+
+                    var ChildNode = new TreeNode { Text = c.Name };
+                    ParentNode.Nodes.Add(ChildNode);
+                }
+                // Only list files in SelectiveSync tab
+                else if (c.Type == ClientItemType.File && _currentTab == AccountSetupTab.SelectiveSync)
+                    tRemoteList.Nodes.Add(c.Name);
+            }
+            if (_currentTab == AccountSetupTab.RemoteFolder)
+            {
+                current.Expand();
+                tFullRemotePath.Text = Program.Account.HomePath;
+                tRemoteList.AfterExpand += tRemoteList_AfterExpand;
+            }
+            else
+                EditNodeCheckboxes();
+        }
+
+        private void CheckSingleRoute(TreeNode tn)
+        {
+            if (tn.Checked && tn.Parent != null)
+                if (!tn.Parent.Checked)
+                {
+                    tn.Parent.Checked = true;
+                    if (Program.Account.IgnoreList.Items.Contains(tn.Parent.FullPath))
+                        Program.Account.IgnoreList.Items.Remove(tn.Parent.FullPath);
+                    CheckSingleRoute(tn.Parent);
+                }
+        }
+
+        /// <summary>
+        /// Uncheck items that have been picked as ignored by the user
+        /// </summary>
+        private void EditNodeCheckboxes()
+        {
+            foreach (TreeNode t in tRemoteList.Nodes)
+            {
+                if (!Program.Account.IgnoreList.isInIgnoredFolders(t.FullPath)) t.Checked = true;
+                if (t.Parent != null)
+                    if (!t.Parent.Checked) t.Checked = false;
+
+                foreach (TreeNode tn in t.Nodes)
+                    EditNodeCheckboxesRecursive(tn);
+            }
+        }
+
+        private void EditNodeCheckboxesRecursive(TreeNode t)
+        {
+            t.Checked = Program.Account.IgnoreList.isInIgnoredFolders(t.FullPath);
+            if (t.Parent != null)
+                if (!t.Parent.Checked) t.Checked = false;
+
+            foreach (TreeNode tn in t.Nodes)
+                EditNodeCheckboxesRecursive(tn);
+        }
+
+        private void CheckUncheckChildNodes(TreeNode t, bool c)
+        {
+            t.Checked = c;
+            foreach (TreeNode tn in t.Nodes)
+                CheckUncheckChildNodes(tn, c);
+        }
+
+        #region Control event handlers
+
+        private void bPrevious_Click(object sender, EventArgs e)
+        {
+            SwitchTab(_prevTab);
+
+            switch (_prevTab)
+            {
+                case AccountSetupTab.None:
+                    _currentTab = AccountSetupTab.None;
+                    break;
+                case AccountSetupTab.Login:
+                    _currentTab = AccountSetupTab.None;
+                    _prevTab = AccountSetupTab.None;
+                    break;
+                case AccountSetupTab.LocalFodler:
+                    _currentTab = AccountSetupTab.Login;
+                    _prevTab = _initialTab;
+                    break;
+                case AccountSetupTab.RemoteFolder:
+                    _currentTab = AccountSetupTab.LocalFodler;
+                    _prevTab = AccountSetupTab.Login;
+                    break;
+                case AccountSetupTab.FileSyncOption:
+                    _currentTab = AccountSetupTab.RemoteFolder;
+                    _prevTab = AccountSetupTab.LocalFodler;
+                    break;
+                case AccountSetupTab.SelectiveSync:
+                    _currentTab = AccountSetupTab.FileSyncOption;
+                    _prevTab = AccountSetupTab.RemoteFolder;
+                    break;
+            }
+
+            if (_currentTab == AccountSetupTab.RemoteFolder)
+            {
+                Program.Account.Client.WorkingDirectory = Program.Account.HomePath;
+                tRemoteList.CheckBoxes = false;
+                tFullRemotePath.Visible = true;
+                labFullPath.Text = Common.Languages[UiControl.FullRemotePath];
+                PopulateRemoteList();
+            }
+
+            bPrevious.Enabled = _currentTab != _initialTab;
+            bNext.Enabled = true;
+            bFinish.Enabled = false;
+            this.AcceptButton = bNext;
+        }
+
+        private void bNext_Click(object sender, EventArgs e)
+        {
+            switch (_currentTab)
+            {
+                /*
+                case AccountSetupTab.None:
+                    string lan = cLanguages.SelectedItem.ToString().Substring(cLanguages.SelectedItem.ToString().IndexOf("(") + 1);
+                    lan = lan.Substring(0, lan.Length - 1);
+                    Settings.General.Language = lan;
+                    SetLanguage(lan);
+                    SwitchTab(AccountSetupTab.Login);
+                    break;
+                 */
+                case AccountSetupTab.Login:
+                    TryLogin();
+
+                    // TEST 
+                    /* LocalFolder */
+                    if (!System.IO.Directory.Exists(tLocalPath.Text))
+                        System.IO.Directory.CreateDirectory(tLocalPath.Text);
+
+                    /*Mise en place de l'icone*/
+                    FolderIcon iconDefautltPath = new FolderIcon(tLocalPath.Text);
+                    iconDefautltPath.CreateFolderIcon(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) + "\\Iwit Systems\\IwitSync\\regular.ico", "iwitSync");
+                    
+                    tRemoteList.CheckBoxes = false;
+                    tFullRemotePath.Visible = true;
+                    labFullPath.Text = Common.Languages[UiControl.FullRemotePath];
+                    gRemoteFolder.Text = Common.Languages[UiControl.RemotePath];
+
+                    /* RemoteFolder */
+                    var parentPath = Program.Account.Account.Host + tFullRemotePath.Text;
+                    Program.Account.AddPaths(tFullRemotePath.Text, tLocalPath.Text, parentPath);
+                    // Change directory to the specified remote folder
+                    Program.Account.Client.WorkingDirectory = Program.Account.Paths.Remote;
+
+
+
+
+                    /* FileSyncOption */
+                    tRemoteList.CheckBoxes = true;
+                    tFullRemotePath.Visible = false;
+                    labFullPath.Text = Common.Languages[UiControl.UncheckFiles];
+                    gRemoteFolder.Text = Common.Languages[UiControl.SelectiveSync];
+                    PopulateRemoteList();
+                    SwitchTab(AccountSetupTab.MessageWelcome);
+
+                    /* forcer la syn auto */
+                    Program.Account.Account.SyncMethod = SyncMethod.Automatic;
+                    // FIN TEST
+                    break;
+            /*
+                case AccountSetupTab.LocalFodler:
+                    if (!System.IO.Directory.Exists(tLocalPath.Text))
+                        System.IO.Directory.CreateDirectory(tLocalPath.Text);
+
+                    tRemoteList.CheckBoxes = false;
+                    tFullRemotePath.Visible = true;
+                    labFullPath.Text = Common.Languages[UiControl.FullRemotePath];
+                    gRemoteFolder.Text = Common.Languages[UiControl.RemotePath];
+                    SwitchTab(AccountSetupTab.RemoteFolder);
+                    PopulateRemoteList();
+                    break;
+                case AccountSetupTab.RemoteFolder:
+                    //parentPath = Program.Account.Account.Host + tFullRemotePath.Text;
+                    Program.Account.AddPaths(tFullRemotePath.Text, tLocalPath.Text, parentPath);
+                    // Change directory to the specified remote folder
+                    Program.Account.Client.WorkingDirectory = Program.Account.Paths.Remote;
+                    // ??
+                    SwitchTab(AccountSetupTab.FileSyncOption);
+                    break;
+                case AccountSetupTab.FileSyncOption:
+
+                    tRemoteList.CheckBoxes = true;
+                    tFullRemotePath.Visible = false;
+                    labFullPath.Text = Common.Languages[UiControl.UncheckFiles];
+                    gRemoteFolder.Text = Common.Languages[UiControl.SelectiveSync];
+                    SwitchTab(AccountSetupTab.SelectiveSync);
+                    PopulateRemoteList();
+                    break;
+            */
+            }
+            bFinish.Enabled = (_currentTab == AccountSetupTab.FileSyncOption && rSyncAll.Checked) || _currentTab == AccountSetupTab.SelectiveSync ||_currentTab == AccountSetupTab.MessageWelcome;
+            bNext.Enabled = !bFinish.Enabled;
+
+            this.AcceptButton = bNext.Enabled ? bNext : bFinish;
+        }
+
+        private void bFinish_Click(object sender, EventArgs e)
+        {
+            if (JustPassword)
+            {
+                TryLogin();
+                return;
+            }
+
+            Program.Account.AskForPassword = cAskForPass.Checked;
+            Settings.Save(Program.Account);
+
+            
+            // Creation d'un shortcut
+            var account = string.Format("{0}@{1}", Program.Account.Account.Username, Program.Account.Account.Host);
+            var pathDuRaccourci = string.Format(@"{0}\iwitSync\{1}", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), account + "\\");
+            var destinationDuRaccourci = string.Format(@"{0}\Dossier iwit sync.lnk", Environment.GetFolderPath(Environment.SpecialFolder.DesktopDirectory));
+            CreateShortcut(pathDuRaccourci, destinationDuRaccourci, null, null, null, null, 1);
+            
+
+            Hide();
+        }
+
+        private void bBrowse_Click(object sender, EventArgs e)
+        {
+            fbd.ShowDialog();
+            if (fbd.SelectedPath != string.Empty)
+                tLocalPath.Text = fbd.SelectedPath;
+        }
+
+        private void cMode_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            nPort.Value = cMode.SelectedIndex != 1 ? 21 : 22;
+
+            labKeyPath.Text = string.Empty;
+            cEncryption.Items.Clear();
+            if (cMode.SelectedIndex == 0)
+                cEncryption.Items.AddRange(new[] { "None", "require explicit FTP over TLS", "require implicit FTP over TLS" });
+            else
+                cEncryption.Items.AddRange(new[] { "Normal", "public key authentication" });
+            cEncryption.SelectedIndex = 0;
+
+            labEncryption.Text = cMode.SelectedIndex == 0 ? Common.Languages[UiControl.Encryption] : Common.Languages[UiControl.Authentication];
+        }
+
+        private void cEncryption_SelectedIndexChanged(object sender, EventArgs e)
+        {
+            labKeyPath.Text = string.Empty;
+            if (cMode.SelectedIndex != 1 || cEncryption.SelectedIndex != 1) return;
+
+            var ofd = new OpenFileDialog() { InitialDirectory = Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), Multiselect = false };
+
+            if (ofd.ShowDialog() != DialogResult.OK)
+            {
+                cEncryption.SelectedIndex = 0;
+                return;
+            }
+
+            cEncryption.SelectedIndex = 1;
+            _privateKey = ofd.FileName;
+            labKeyPath.Text = new System.IO.FileInfo(ofd.FileName).Name;
+        }
+
+        private void Setup_FormClosing(object sender, FormClosingEventArgs e)
+        {
+            if (e.CloseReason == CloseReason.UserClosing || e.CloseReason == CloseReason.WindowsShutDown || e.CloseReason == CloseReason.TaskManagerClosing)
+            {
+                // If this in an abandoned new-account form, switch default profile to
+                // the last profile the user set up.
+                if (Settings.General.DefaultProfile > 0 && !JustPassword)
+                {
+                    Settings.General.DefaultProfile--;
+                    Settings.SaveGeneral();
+                }
+
+                ((fMain)Tag).ExitedFromTray = true;
+                ((fMain)Tag).KillTheProcess();
+            }
+        }
+
+        private void rSyncAll_CheckedChanged(object sender, EventArgs e)
+        {
+            bNext.Enabled = !rSyncAll.Checked;
+            bFinish.Enabled = rSyncAll.Checked;
+            this.AcceptButton = bNext.Enabled ? bNext : bFinish;
+        }
+
+        private void rSyncCustom_CheckedChanged(object sender, EventArgs e)
+        {
+            bNext.Enabled = rSyncCustom.Checked;
+            bFinish.Enabled = !rSyncCustom.Checked;
+            this.AcceptButton = bNext.Enabled ? bNext : bFinish;
+        }
+
+        private void rDefaultLocalFolder_CheckedChanged(object sender, EventArgs e)
+        {
+            bBrowse.Enabled = !rDefaultLocalFolder.Checked;
+            SetDefaultLocalPath();
+        }
+
+        private void rCustomLocalFolder_CheckedChanged(object sender, EventArgs e)
+        {
+            bBrowse.Enabled = rCustomLocalFolder.Checked;
+        }
+
+        private void SetDefaultLocalPath()
+        {
+            var account = string.Format("{0}@{1}", Program.Account.Account.Username, Program.Account.Account.Host);
+            var account2 = string.Format(Program.Account.Account.Username);
+            if (rDefaultLocalFolder.Checked)
+                tLocalPath.Text = string.Format(@"{0}\iwitSync\{1}", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), account);
+        }
+
+        private void tRemoteList_AfterCheck(object sender, TreeViewEventArgs e)
+        {
+            if (_checkingNodes) return;
+
+            string cpath = Program.Account.GetCommonPath(e.Node.FullPath, false);
+
+            if (e.Node.Checked && Program.Account.IgnoreList.Items.Contains(cpath))
+                Program.Account.IgnoreList.Items.Remove(cpath);
+            else if (!e.Node.Checked && !Program.Account.IgnoreList.Items.Contains(cpath))
+                Program.Account.IgnoreList.Items.Add(cpath);
+
+            _checkingNodes = true;
+            CheckUncheckChildNodes(e.Node, e.Node.Checked);
+
+            if (e.Node.Checked && e.Node.Parent != null)
+                if (!e.Node.Parent.Checked)
+                {
+                    e.Node.Parent.Checked = true;
+                    if (Program.Account.IgnoreList.Items.Contains(e.Node.Parent.FullPath))
+                        Program.Account.IgnoreList.Items.Remove(e.Node.Parent.FullPath);
+                    CheckSingleRoute(e.Node.Parent);
+                }
+            // Program.Account.IgnoreList.Save();
+            _checkingNodes = false;
+        }
+
+        private void tRemoteList_AfterSelect(object sender, TreeViewEventArgs e)
+        {
+            string path = "/" + e.Node.FullPath.Replace('\\', '/');
+            if (path.EndsWith(".."))
+                path = path.Substring(0, path.Length - 2);
+            else if (path.EndsWith("."))
+                path = path.Substring(0, path.Length - 1);
+
+            while (path.Contains("//"))
+                path = path.Replace("//", "/");
+
+            tFullRemotePath.Text = path;
+        }
+
+        private void tRemoteList_AfterExpand(object sender, TreeViewEventArgs e)
+        {
+            string path = (_currentTab == AccountSetupTab.RemoteFolder) ? "/" : "./";
+            path += e.Node.FullPath.Replace('\\', '/');
+            while (path.Contains("//"))
+                path = path.Replace("//", "/");
+
+            if (e.Node.Nodes.Count > 0)
+                e.Node.Nodes.Clear();
+
+            foreach (var c in Program.Account.Client.List(path, false))
+            {
+                if (c.Type == ClientItemType.Folder)
+                {
+                    var ParentNode = new TreeNode { Text = c.Name };
+                    e.Node.Nodes.Add(ParentNode);
+
+                    var ChildNode = new TreeNode { Text = c.Name };
+                    ParentNode.Nodes.Add(ChildNode);
+                }
+                else if (c.Type == ClientItemType.File && _currentTab == AccountSetupTab.SelectiveSync)
+                    e.Node.Nodes.Add(c.Name);
+            }
+            // update checkboxes
+            foreach (TreeNode tn in e.Node.Nodes)
+                tn.Checked = !Program.Account.IgnoreList.isInIgnoredFolders(tn.FullPath);
+        }
+
+        private void Setup_RightToLeftLayoutChanged(object sender, EventArgs e)
+        {
+            gLanguage.RightToLeft = RightToLeftLayout ? RightToLeft.Yes : RightToLeft.No;
+            gLoginDetails.RightToLeft = RightToLeftLayout ? RightToLeft.Yes : RightToLeft.No;
+            gLocalFolder.RightToLeft = RightToLeftLayout ? RightToLeft.Yes : RightToLeft.No;
+            gRemoteFolder.RightToLeft = RightToLeftLayout ? RightToLeft.Yes : RightToLeft.No;
+            gSelectiveSync.RightToLeft = RightToLeftLayout ? RightToLeft.Yes : RightToLeft.No;
+            gMessageWelcome.RightToLeft = RightToLeftLayout ? RightToLeft.Yes : RightToLeft.No;
+
+            // Inherit manually
+            tRemoteList.RightToLeft = RightToLeftLayout ? RightToLeft.Yes : RightToLeft.No;
+            cAskForPass.RightToLeft = RightToLeftLayout ? RightToLeft.Yes : RightToLeft.No;
+            tRemoteList.RightToLeftLayout = RightToLeftLayout;
+
+            // Buttons
+            bPrevious.Location = RightToLeftLayout ? new Point(174, 223) : new Point(235, 223);
+            bNext.Location = RightToLeftLayout ? new Point(93, 223) : new Point(316, 223);
+            bFinish.Location = RightToLeftLayout ? new Point(12, 223) : new Point(397, 223);
+
+            // Relocate controls where necessary
+            cMode.Location = RightToLeftLayout ? new Point(261, 27) : new Point(145, 27);
+            tHost.Location = RightToLeftLayout ? new Point(94, 81) : new Point(145, 81);
+            labColon.Location = RightToLeftLayout ? new Point(78, 84) : new Point(375, 84);
+            nPort.Location = RightToLeftLayout ? new Point(15, 81) : new Point(391, 81);
+            tUsername.Location = RightToLeftLayout ? new Point(15, 107) : new Point(145, 107);
+            tPass.Location = RightToLeftLayout ? new Point(15, 133) : new Point(145, 133);
+            labKeyPath.Location = RightToLeftLayout ? new Point(15, 57) : new Point(324, 57);
+
+            tLocalPath.Location = RightToLeftLayout ? new Point(95, 133) : new Point(15, 133);
+            bBrowse.Location = RightToLeftLayout ? new Point(15, 131) : new Point(375, 131);
+            tFullRemotePath.Location = RightToLeftLayout ? new Point(15, 29) : new Point(122, 29);
+        }
+
+        #endregion
+
+        /**************************************************                                                                  **************************************************** *
+         * ************************************************                                                                  **************************************************** *
+         * ************************************************ CREATION DES FONCTIONS DE LANCEMENT SANS APPARITION DES FENETRES **************************************************** *
+         * ************************************************                                                                  **************************************************** *
+         * ************************************************                                                                  ******************************************************/
+
+        /// <summary>
+        /// Permet de choisir le fichier local automatiquement
+        /// </summary>
+        private void SetDefaultLocalPathINSTANT()
+        {
+            HideGroups();
+            gLoginDetails.Visible = true;
+
+            var account = string.Format("{0}@{1}", Program.Account.Account.Username, Program.Account.Account.Host);
+            tLocalPath.Text = string.Format(@"{0}\iwitSync\{1}", Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments), account);
+
+            if (!System.IO.Directory.Exists(tLocalPath.Text))
+                System.IO.Directory.CreateDirectory(tLocalPath.Text);
+
+            rSyncAll.Checked = true;
+            this.AcceptButton = bFinish;
+            bFinish.Enabled = true;
+
+            /*Mise en place de l'icone*/
+
+            FolderIcon iconDefautltPath = new FolderIcon(Environment.GetFolderPath(Environment.SpecialFolder.MyDocuments)+"\\iwitSync");
+            iconDefautltPath.CreateFolderIcon(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) + "\\Iwit Systems\\iwitSync\\dossier-iwit.ico", "iwitSync");
+
+            /*Mise en place de l'icone*/
+
+            FolderIcon iconDefautltPath2 = new FolderIcon(tLocalPath.Text);
+            iconDefautltPath2.CreateFolderIcon(Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) + "\\Iwit Systems\\IwitSync\\dossier-iwit.ico", "iwitSync");
+
+
+        }
+
+        private void boutonDossierSync_Click(object sender, EventArgs e)
+        {
+            Process.Start("explorer.exe", Program.Account.Paths.Local);
+        }
+
+
+
+        /// <summary>
+        /// Create Windows Shorcut
+        /// </summary>
+        /// <param name="SourceFile">A file you want to make shortcut to</param>
+        /// <param name="ShortcutFile">Path and shorcut file name including file extension (.lnk)</param>
+        public static void CreateShortcut(string SourceFile, string ShortcutFile)
+        {
+            CreateShortcut(SourceFile, ShortcutFile, null, null, null, null, 1);
+        }
+
+        /// <summary>
+        /// Create Windows Shorcut
+        /// </summary>
+        /// <param name="SourceFile">A file you want to make shortcut to</param>
+        /// <param name="ShortcutFile">Path and shorcut file name including file extension (.lnk)</param>
+        /// <param name="Description">Shortcut description</param>
+        /// <param name="Arguments">Command line arguments</param>
+        /// <param name="HotKey">Shortcut hot key as a string, for example "Ctrl+F"</param>
+        /// <param name="WorkingDirectory">"Start in" shorcut parameter</param>
+        public static void CreateShortcut(string TargetPath, string ShortcutFile, string Description,
+           string Arguments, string HotKey, string WorkingDirectory, int logo)
+        {
+            // Check necessary parameters first:
+            if (String.IsNullOrEmpty(TargetPath))
+                throw new ArgumentNullException("TargetPath");
+            if (String.IsNullOrEmpty(ShortcutFile))
+                throw new ArgumentNullException("ShortcutFile");
+
+            // Create WshShellClass instance:
+            var wshShell = new WshShell();
+
+            // Create shortcut object:
+            IWshRuntimeLibrary.IWshShortcut shorcut = (IWshRuntimeLibrary.IWshShortcut)wshShell.CreateShortcut(ShortcutFile);
+
+            if (logo == 1)
+                shorcut.IconLocation = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) + "\\Iwit Systems\\iwitSync\\dossier-iwit.ico";
+            else if (logo == 2)
+                shorcut.IconLocation = Environment.GetFolderPath(Environment.SpecialFolder.ProgramFilesX86) + "\\Iwit Systems\\iwitSync\\regular.ico";
+
+            // Assign shortcut properties:
+            shorcut.TargetPath = TargetPath;
+            shorcut.Description = Description;
+            if (!String.IsNullOrEmpty(Arguments))
+                shorcut.Arguments = Arguments;
+            if (!String.IsNullOrEmpty(HotKey))
+                shorcut.Hotkey = HotKey;
+            if (!String.IsNullOrEmpty(WorkingDirectory))
+                shorcut.WorkingDirectory = WorkingDirectory;
+
+            // Save the shortcut:
+            shorcut.Save();
+        }
+    }
+
+    public enum AccountSetupTab
+    {
+        None,
+        Login,
+        LocalFodler,
+        RemoteFolder,
+        FileSyncOption,
+        SelectiveSync,
+        MessageWelcome
+    }
+
+
+}
